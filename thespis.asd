@@ -4,3 +4,7 @@
   :license "MIT"
   :depends-on (#:alexandria #:bordeaux-threads #:queues.simple-cqueue)
   :components ((:file "thespis")))
+
+(asdf:defsystem #:thespis/test
+  :depends-on (#:thespis #:fiveam)
+  :components ((:file "test")))

@@ -1,7 +1,5 @@
 (defpackage #:thespis
   (:use #:cl)
-  (:local-nicknames (#:a #:alexandria-2)
-                    (#:q #:queues))
   (:export #:actor
            #:self
            #:send
@@ -22,6 +20,7 @@
            #:actor-store))
 (in-package #:thespis)
 
+(defparameter *dbg* nil)
 (defvar *actors* (make-hash-table))
 
 (defstruct close-signal)
@@ -36,7 +35,7 @@
 (defstruct (actor (:constructor make-actor%))
   (name  (error ":name must be specified.")  :type symbol)
   (behav (error ":behav must be specified.") :type function)
-  (queue (q:make-queue :simple-cqueue)       :type q:simple-cqueue)
+  (queue (queues:make-queue :simple-cqueue)       :type queues:simple-cqueue)
   (openp t                                   :type boolean)
   (store nil                                 :type list)
   (lock  (bt2:make-lock)                     :type bt2:lock)
@@ -48,14 +47,14 @@
   (with-slots (behav queue store lock cv) actor
     (loop
       (bt2:thread-yield)
-      (let ((sig (q:qpop queue)))
+      (let ((sig (queues:qpop queue)))
         (etypecase sig
           (async-signal
            (setf (actor-store actor)
-                 (apply behav (async-signal-msg sig))))
+                 (multiple-value-list (apply behav (async-signal-msg sig)))))
           (sync-signal
            (setf (actor-store actor)
-                 (apply behav (sync-signal-msg sig)))
+                 (multiple-value-list (apply behav (sync-signal-msg sig))))
            (funcall (sync-signal-callback sig)))
           (close-signal
            (return store))
@@ -98,7 +97,7 @@
 (defun send-signal (actor sig)
   (with-slots (queue openp cv) actor
     (unless openp (error (format nil "Actor ~w is closed" actor)))
-    (q:qpush queue sig)
+    (queues:qpush queue sig)
     (bt2:condition-notify cv)))
 
 (defun send (actor &rest args)
@@ -110,14 +109,14 @@
 (defun ask (actor &rest args)
   "Syncronously send a message and await a response from an actor"
   (etypecase actor
-    (symbol (apply #'send (cons (gethash actor *actors*) args)))
+    (symbol (apply #'ask (cons (gethash actor *actors*) args)))
     (actor
      (let* ((lock (bt2:make-lock))
             (cv (bt2:make-condition-variable))
             (callback (lambda () (bt2:condition-notify cv))))
        (send-signal actor (make-sync-signal :msg args :callback callback))
        (bt2:with-lock-held (lock) (bt2:condition-wait cv lock))
-       (apply #'values (actor-store actor))))))
+       (actor-store actor)))))
 
 (defmacro with-behavior (name state args &body body)
   `(let ((self nil) ,@state)
