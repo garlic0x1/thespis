@@ -20,7 +20,6 @@
            #:actor-store))
 (in-package #:thespis)
 
-(defparameter *dbg* nil)
 (defvar *actors* (make-hash-table))
 
 (defstruct close-signal)
@@ -35,7 +34,7 @@
 (defstruct (actor (:constructor make-actor%))
   (name  (error ":name must be specified.")  :type symbol)
   (behav (error ":behav must be specified.") :type function)
-  (queue (queues:make-queue :simple-cqueue)       :type queues:simple-cqueue)
+  (queue (queues:make-queue :simple-cqueue)  :type queues:simple-cqueue)
   (openp t                                   :type boolean)
   (store nil                                 :type list)
   (lock  (bt2:make-lock)                     :type bt2:lock)
@@ -68,6 +67,12 @@
     (setf (actor-thread actor) (bt2:make-thread (lambda () (run-actor actor))))
     actor))
 
+(defun send-signal (actor sig)
+  (with-slots (queue openp cv) actor
+    (unless openp (error (format nil "Actor ~w is closed" actor)))
+    (queues:qpush queue sig)
+    (bt2:condition-notify cv)))
+
 (defun close-actor (actor)
   "Send a close-signal to an actor."
   (etypecase actor
@@ -94,12 +99,6 @@
   (mapcar #'close-actor actors)
   (mapcar #'join-actor actors))
 
-(defun send-signal (actor sig)
-  (with-slots (queue openp cv) actor
-    (unless openp (error (format nil "Actor ~w is closed" actor)))
-    (queues:qpush queue sig)
-    (bt2:condition-notify cv)))
-
 (defun send (actor &rest args)
   "Asyncronously send a message to an actor."
   (etypecase actor
@@ -124,6 +123,7 @@
        (setf self (make-actor ,name #'me)))))
 
 (defmacro defactor (name state args &body body)
+  "Define and spawn an actor."
   (etypecase name
     (keyword `(setf (gethash ,name *actors*)
                     (with-behavior ,name ,state ,args ,@body)))
