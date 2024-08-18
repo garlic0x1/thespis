@@ -8,9 +8,8 @@
            #:join-actor
            #:destroy-actor
            #:close-and-join-actors
-           #:defactor
+           #:define-actor
            ;; Actor slots, you probably won't need these
-           #:actor-name
            #:actor-behav
            #:actor-queue
            #:actor-lock
@@ -32,7 +31,6 @@
   (callback (error ":callback must be specified.") :type function))
 
 (defstruct (actor (:constructor make-actor%))
-  (name  (error ":name must be specified.")  :type symbol)
   (behav (error ":behav must be specified.") :type function)
   (queue (queues:make-queue :simple-cqueue)  :type queues:simple-cqueue)
   (openp t                                   :type boolean)
@@ -40,6 +38,12 @@
   (lock  (bt2:make-lock)                     :type bt2:lock)
   (cv    (bt2:make-condition-variable)       :type bt2:condition-variable)
   (thread nil                                :type (or null bt2:thread)))
+
+(defun resolve-actor (actor)
+  "If provided a keyword, look it up in the global *actors* table."
+  (etypecase actor
+    (keyword (gethash actor *actors*))
+    (actor actor)))
 
 (defun run-actor (actor)
   "Run main event loop for actor."
@@ -61,9 +65,9 @@
            (bt2:with-lock-held (lock)
              (bt2:condition-wait cv lock))))))))
 
-(defun make-actor (name behav)
+(defun make-actor (behav)
   "Make an actor and run event loop."
-  (let ((actor (make-actor% :name name :behav behav)))
+  (let ((actor (make-actor% :behav behav)))
     (setf (actor-thread actor) (bt2:make-thread (lambda () (run-actor actor))))
     actor))
 
@@ -73,13 +77,10 @@
     (queues:qpush queue sig)
     (bt2:condition-notify cv)))
 
-(defun close-actor (actor)
+(defun close-actor (actor &aux (actor (resolve-actor actor)))
   "Send a close-signal to an actor."
-  (etypecase actor
-    (symbol (close-actor (gethash actor *actors*)))
-    (actor
-     (send-signal actor (make-close-signal))
-     (setf (actor-openp actor) nil))))
+  (send-signal actor (make-close-signal))
+  (setf (actor-openp actor) nil))
 
 (defun join-actor (actor)
   "Wait for an actor to finish computing."
@@ -115,16 +116,10 @@
             (callback (lambda () (bt2:condition-notify cv))))
        (send-signal actor (make-sync-signal :msg args :callback callback))
        (bt2:with-lock-held (lock) (bt2:condition-wait cv lock))
-       (actor-store actor)))))
+       (apply #'values (actor-store actor))))))
 
-(defmacro with-behavior (name state args &body body)
-  `(let ((self nil) ,@state)
-     (labels ((me ,args ,@body))
-       (setf self (make-actor ,name #'me)))))
-
-(defmacro defactor (name state args &body body)
-  "Define and spawn an actor."
-  (etypecase name
-    (keyword `(setf (gethash ,name *actors*)
-                    (with-behavior ,name ,state ,args ,@body)))
-    (symbol  `(with-behavior ,name ,state ,args ,@body))))
+(defmacro define-actor (name state args &body body)
+  `(defun ,name ()
+     (let ((self nil) ,@state)
+       (labels ((me ,args ,@body))
+         (setf self (make-actor #'me))))))
