@@ -6,8 +6,8 @@
 (in-suite :thespis)
 
 (test :counter
-  (define-actor counter ((i 0)) (increment)
-    (incf i increment))
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
 
   (let ((actor (counter)))
     (send actor 1)
@@ -21,17 +21,48 @@
     (is (= -1 (ask actor 1)))
     (close-actor actor)))
 
-;; This does not work because you cant recursively ask, trying to
-;; synchrononize makes it block and not process any messages
+(test :lambda-rest
+  (define-actor square-summer ((c 0)) (&rest args)
+    (incf c (apply #'+ (mapcar (lambda (x) (* x x)) args))))
 
-;; (test :factorial
-;;   (define-actor factorializer () (n)
-;;     (format t "factorializing: ~a" n)
-;;     (force-output)
-;;     (if (= 0 n)
-;;         1
-;;         (* n (ask self (1- n)))))
+  (let ((actor (square-summer)))
+    (is (= 5 (ask actor 1 2)))
+    (is (= 21 (ask actor 4)))
+    (close-actor actor)))
 
-;;   (let ((actor (factorializer)))
-;;     (= 3628800 (ask actor 10))
-;;     (close-actor actor)))
+(test :lambda-key
+  (define-actor point-actor ((x 0) (y 0) (z 0))
+      (&key (dx 0) (dy 0) (dz 0))
+    (list
+     :x (incf x dx)
+     :y (incf y dy)
+     :z (incf z dz)))
+
+  (let ((actor (point-actor)))
+    (send actor :dx -1 :dz 3)
+    (is (equal '(:x -1 :y 0 :z 3) (ask actor)))
+    (send actor :dy 100)
+    (is (equal '(:x -1 :y 100 :z 3) (ask actor)))
+    (close-actor actor)))
+
+(test :pong
+  (let (*pinger* *ponger* (result 0))
+    (define-actor pinger () (c)
+      (incf result)
+      (if (< c 10)
+          (send *ponger* (1+ c))
+          (progn (close-actor *ponger*)
+                 (close-actor *pinger*))))
+
+    (define-actor ponger () (c)
+      (incf result)
+      (if (< c 10)
+          (send *pinger* (1+ c))
+          (progn (close-actor *ponger*)
+                 (close-actor *pinger*))))
+
+    (setf *ponger* (ponger) *pinger* (pinger))
+    (send *ponger* 0)
+    (join-actor *ponger*)
+    (join-actor *pinger*)
+    (is (= 11 result))))
