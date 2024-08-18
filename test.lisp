@@ -46,23 +46,31 @@
     (close-actor actor)))
 
 (test :pong
-  (let (*pinger* *ponger* (result 0))
+  (let (pinger ponger (result 0))
     (define-actor pinger () (c)
       (incf result)
       (if (< c 10)
-          (send *ponger* (1+ c))
-          (progn (close-actor *ponger*)
-                 (close-actor *pinger*))))
+          (send ponger (1+ c))
+          (progn (close-actor ponger)
+                 (close-actor pinger))))
 
     (define-actor ponger () (c)
       (incf result)
       (if (< c 10)
-          (send *pinger* (1+ c))
-          (progn (close-actor *ponger*)
-                 (close-actor *pinger*))))
+          (send pinger (1+ c))
+          (progn (close-actor ponger)
+                 (close-actor pinger))))
 
-    (setf *ponger* (ponger) *pinger* (pinger))
-    (send *ponger* 0)
-    (join-actor *ponger*)
-    (join-actor *pinger*)
+    (setf ponger (ponger) pinger (pinger))
+    (send ponger 0)
+    (join-actor ponger)
+    (join-actor pinger)
     (is (= 11 result))))
+
+;; (test :self
+;;   (define-actor selfish () ()
+;;     *self*)
+
+;;   (let ((actor (selfish)))
+;;     (is (eq actor (car (ask actor))))
+;;     (close-actor actor)))
