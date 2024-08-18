@@ -1,0 +1,28 @@
+#+title: Thespis
+#+author: garlic0x1
+
+Thespis is a threaded actor library for Common Lisp.
+
+* Example
+#+begin_src lisp
+;;            name    state   args
+(define-actor counter ((i 0)) (increment)
+  (sleep 1)
+  (incf i increment))
+
+(let ((actor (counter))) ; spawn a counter actor
+  (send actor 2)         ; returns instantly
+  (ask actor 1)          ; returns after 2 seconds
+  (close-actor actor))   ; cleanup
+#+end_src
+
+In this example, we define a prototype of a counter actor, this
+defines a function of the same name that will spawn an instance of
+this actor and lets us define slots for it to store state in, and
+arguments for messages sent to the actor.
+
+If you try this in your REPL you will notice that `send` is
+asynchronous, it enqueues a message for the actor and returns
+instantly.  The `ask` function is synchronous and waits for its
+message to be processed and returns the result of the actor's
+processing.
