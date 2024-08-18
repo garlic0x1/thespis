@@ -68,5 +68,5 @@ communicate with singleton actors:
     (join-actor *pinger*)))
 #+end_src
 
-* TODO fix and document *self*
+* TODO document *self*
 TODO

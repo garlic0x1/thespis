@@ -67,10 +67,15 @@
     (join-actor pinger)
     (is (= 11 result))))
 
-;; (test :self
-;;   (define-actor selfish () ()
-;;     *self*)
+(test :self
+  (let ((result 0))
+    (define-actor selfish-counter () ()
+      (incf result)
+      (if (< 10 result)
+          (close-actor *self*)
+          (send *self*)))
 
-;;   (let ((actor (selfish)))
-;;     (is (eq actor (car (ask actor))))
-;;     (close-actor actor)))
+    (let ((actor (selfish-counter)))
+      (send actor)
+      (join-actor actor)
+      (is (= result 11)))))
