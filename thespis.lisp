@@ -19,8 +19,6 @@
            #:actor-store))
 (in-package #:thespis)
 
-(defvar *actors* (make-hash-table))
-
 (defstruct close-signal)
 
 (defstruct async-signal
@@ -38,12 +36,6 @@
   (lock  (bt2:make-lock)                     :type bt2:lock)
   (cv    (bt2:make-condition-variable)       :type bt2:condition-variable)
   (thread nil                                :type (or null bt2:thread)))
-
-(defun resolve-actor (actor)
-  "If provided a keyword, look it up in the global *actors* table."
-  (etypecase actor
-    (keyword (gethash actor *actors*))
-    (actor actor)))
 
 (defun run-actor (actor)
   "Run main event loop for actor."

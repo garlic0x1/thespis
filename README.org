@@ -12,7 +12,7 @@ Thespis is a threaded actor library for Common Lisp.
 
 (let ((actor (counter))) ; spawn a counter actor
   (send actor 2)         ; returns instantly
-  (ask actor 1)          ; returns after 2 seconds
+  (ask actor 1)          ; returns after 3 seconds
   (close-actor actor))   ; cleanup
 #+end_src
 
