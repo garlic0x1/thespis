@@ -69,7 +69,7 @@
     (queues:qpush queue sig)
     (bt2:condition-notify cv)))
 
-(defun close-actor (actor &aux (actor (resolve-actor actor)))
+(defun close-actor (actor)
   "Send a close-signal to an actor."
   (send-signal actor (make-close-signal))
   (setf (actor-openp actor) nil))
