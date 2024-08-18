@@ -105,6 +105,6 @@
 
 (defmacro define-actor (name state args &body body)
   `(defun ,name ()
-     (let ((self nil) ,@state)
+     (let ,state
        (labels ((me ,args ,@body))
-         (setf self (make-actor #'me))))))
+         (make-actor #'me)))))
