@@ -19,6 +19,8 @@
            #:actor-store))
 (in-package #:thespis)
 
+(defvar self)
+
 (defstruct close-signal)
 
 (defstruct async-signal
@@ -42,7 +44,8 @@
   (with-slots (behav queue store lock cv) actor
     (loop
       (bt2:thread-yield)
-      (let ((sig (queues:qpop queue)))
+      (let ((sig (queues:qpop queue))
+            (self actor))
         (etypecase sig
           (async-signal
            (setf (actor-store actor)
@@ -76,17 +79,12 @@
 
 (defun join-actor (actor)
   "Wait for an actor to finish computing."
-  (etypecase actor
-    (symbol (join-actor (gethash actor *actors*)))
-    (actor
-     (bt2:join-thread (actor-thread actor))
-     (actor-store actor))))
+  (bt2:join-thread (actor-thread actor))
+  (actor-store actor))
 
 (defun destroy-actor (actor)
   "Immediately destroy an actor's thread."
-  (etypecase actor
-    (symbol (destroy-actor (gethash actor *actors*)))
-    (actor (bt2:destroy-thread (actor-thread actor)))))
+  (bt2:destroy-thread (actor-thread actor)))
 
 (defun close-and-join-actors (&rest actors)
   (mapcar #'close-actor actors)
@@ -94,21 +92,16 @@
 
 (defun send (actor &rest args)
   "Asyncronously send a message to an actor."
-  (etypecase actor
-    (symbol (apply #'send (cons (gethash actor *actors*) args)))
-    (actor  (send-signal actor (make-async-signal :msg args)))))
+  (send-signal actor (make-async-signal :msg args)))
 
 (defun ask (actor &rest args)
   "Syncronously send a message and await a response from an actor"
-  (etypecase actor
-    (symbol (apply #'ask (cons (gethash actor *actors*) args)))
-    (actor
-     (let* ((lock (bt2:make-lock))
-            (cv (bt2:make-condition-variable))
-            (callback (lambda () (bt2:condition-notify cv))))
-       (send-signal actor (make-sync-signal :msg args :callback callback))
-       (bt2:with-lock-held (lock) (bt2:condition-wait cv lock))
-       (apply #'values (actor-store actor))))))
+  (let* ((lock (bt2:make-lock))
+         (cv (bt2:make-condition-variable))
+         (callback (lambda () (bt2:condition-notify cv))))
+    (send-signal actor (make-sync-signal :msg args :callback callback))
+    (bt2:with-lock-held (lock) (bt2:condition-wait cv lock))
+    (apply #'values (actor-store actor))))
 
 (defmacro define-actor (name state args &body body)
   `(defun ,name ()
