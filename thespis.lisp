@@ -32,34 +32,38 @@
   (callback (error ":callback must be specified.") :type function))
 
 (defstruct (actor (:constructor make-actor%))
-  (behav (error ":behav must be specified.") :type function)
-  (queue (queues:make-queue :simple-cqueue)  :type queues:simple-cqueue)
+  (behav  (error ":behav must be specified.") :type function)
+  (fail   #'error                             :type function)
+  (queue  (queues:make-queue :simple-cqueue)  :type queues:simple-cqueue)
   (open-p t                                   :type boolean)
-  (store nil                                 :type list)
-  (lock  (bt2:make-lock)                     :type bt2:lock)
-  (cv    (bt2:make-condition-variable)       :type bt2:condition-variable)
-  (thread nil                                :type (or null bt2:thread)))
+  (store  nil                                 :type list)
+  (lock   (bt2:make-lock)                     :type bt2:lock)
+  (cv     (bt2:make-condition-variable)       :type bt2:condition-variable)
+  (thread nil                                 :type (or null bt2:thread)))
+
+(defun process-message (actor msg)
+  (let ((*self* actor))
+    (setf (actor-store actor)
+          (multiple-value-list
+           (handler-case
+               (apply (actor-behav actor) msg)
+             (error (c) (funcall (actor-fail actor) c)))))))
 
 (defun run-actor (actor)
   "Run main event loop for actor."
-  (with-slots (behav queue store lock cv) actor
-    (loop
-      (bt2:thread-yield)
-      (let ((sig (queues:qpop queue))
-            (*self* actor))
-        (etypecase sig
-          (async-signal
-           (setf (actor-store actor)
-                 (multiple-value-list (apply behav (async-signal-msg sig)))))
-          (sync-signal
-           (setf (actor-store actor)
-                 (multiple-value-list (apply behav (sync-signal-msg sig))))
-           (funcall (sync-signal-callback sig)))
-          (close-signal
-           (return-from run-actor store))
-          (null
-           (bt2:with-lock-held (lock)
-             (bt2:condition-wait cv lock))))))))
+  (loop (bt2:thread-yield)
+        (let ((sig (queues:qpop (actor-queue actor))))
+          (etypecase sig
+            (async-signal
+             (process-message actor (async-signal-msg sig)))
+            (sync-signal
+             (process-message actor (sync-signal-msg sig))
+             (funcall (sync-signal-callback sig)))
+            (close-signal
+             (return-from run-actor (apply #'values (actor-store actor))))
+            (null
+             (bt2:with-lock-held ((actor-lock actor))
+               (bt2:condition-wait (actor-cv actor) (actor-lock actor))))))))
 
 (defun make-actor (behav)
   "Make an actor and run event loop."

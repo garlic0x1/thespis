@@ -79,3 +79,14 @@
       (send actor)
       (join-actor actor)
       (is (= result 11)))))
+
+(test :error-handling
+  (define-actor failer () (x)
+    (/ 1 x))
+
+  (let ((actor (failer)))
+    (is (= 1/3 (ask actor 3)))
+    (setf (thespis::actor-fail actor)
+          (lambda (c) (declare (ignore c)) :failed))
+    (is (eq :failed (ask actor 0)))
+    (close-actor actor)))
