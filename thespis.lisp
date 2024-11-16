@@ -8,8 +8,8 @@
   (msg nil :type list))
 
 (defstruct sync-signal
-  (msg nil                                     :type list)
-  (sem (error ":semaphore must be specified.") :type bt2:semaphore))
+  (msg nil                               :type list)
+  (sem (error "Must provide :semaphore") :type bt2:semaphore))
 
 (defstruct (actor (:constructor make-actor%))
   (behav  (error "Must provide :behav") :type function)
