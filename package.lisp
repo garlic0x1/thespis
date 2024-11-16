@@ -14,9 +14,8 @@
    ;; Actor slots, you probably won't need these
    #:actor-behav           ; ACCESSOR
    #:actor-queue           ; ACCESSOR
-   #:actor-lock            ; ACCESSOR
-   #:actor-cv              ; ACCESSOR
+   #:actor-sem             ; ACCESSOR
    #:actor-thread          ; ACCESSOR
-   #:actor-open-p          ; ACCESSOR
+   #:actor-openp           ; ACCESSOR
    #:actor-store           ; ACCESSOR
    ))

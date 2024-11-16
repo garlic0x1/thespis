@@ -21,7 +21,6 @@
     (is (= -1 (ask actor 1)))
     (close-actor actor)))
 
-
 (test :lambda-rest
   (define-actor square-summer ((c 0)) (&rest args)
     (incf c (apply #'+ (mapcar (lambda (x) (* x x)) args))))

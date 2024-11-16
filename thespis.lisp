@@ -10,17 +10,17 @@
   (msg nil :type list))
 
 (defstruct sync-signal
-  (msg       nil                                     :type list)
-  (semaphore (error ":semaphore must be specified.") :type bt2:semaphore))
+  (msg nil                                     :type list)
+  (sem (error ":semaphore must be specified.") :type bt2:semaphore))
 
 (defstruct (actor (:constructor make-actor%))
-  (behav     (error "Must provide :behav")     :type function)
-  (fail      #'error                           :type function)
-  (queue     (error "Must provide :queue")     :type q:simple-cqueue)
-  (openp     t                                 :type boolean)
-  (store     nil                               :type list)
-  (semaphore (error "Must provide :semaphore") :type bt2:semaphore)
-  (thread nil                                 :type (or null bt2:thread)))
+  (behav  (error "Must provide :behav") :type function)
+  (fail   #'error                       :type function)
+  (queue  (error "Must provide :queue") :type q:simple-cqueue)
+  (openp  t                             :type boolean)
+  (store  nil                           :type list)
+  (sem    (error "Must provide :sem")   :type bt2:semaphore)
+  (thread nil                           :type (or null bt2:thread)))
 
 (defun process-message (actor msg)
   (let ((*self* actor))
@@ -39,16 +39,16 @@
          (process-message actor (async-signal-msg sig)))
         (sync-signal
          (process-message actor (sync-signal-msg sig))
-         (bt2:signal-semaphore (sync-signal-semaphore sig)))
+         (bt2:signal-semaphore (sync-signal-sem sig)))
         (close-signal
          (return-from run-actor (apply #'values (actor-store actor))))
         (null
-         (bt2:wait-on-semaphore (actor-semaphore actor)))))))
+         (bt2:wait-on-semaphore (actor-sem actor)))))))
 
 (defun make-actor (behav)
   "Make an actor and run event loop."
   (let ((actor (make-actor% :behav behav
-                            :semaphore (bt2:make-semaphore)
+                            :sem (bt2:make-semaphore)
                             :queue (q:make-queue :simple-cqueue))))
     (setf (actor-thread actor) (bt2:make-thread (lambda () (run-actor actor))))
     actor))
@@ -57,7 +57,7 @@
   (unless (actor-openp actor)
     (error (format nil "Message sent to closed actor: ~w" actor)))
   (q:qpush (actor-queue actor) sig)
-  (bt2:signal-semaphore (actor-semaphore actor)))
+  (bt2:signal-semaphore (actor-sem actor)))
 
 (defun close-actor (actor)
   "Send a close-signal to an actor."
@@ -84,7 +84,7 @@
 (defun ask (actor &rest args)
   "Syncronously send a message and await a response from an actor"
   (let ((sem (bt2:make-semaphore)))
-    (send-signal actor (make-sync-signal :msg args :semaphore sem))
+    (send-signal actor (make-sync-signal :msg args :sem sem))
     (bt2:wait-on-semaphore sem)
     (apply #'values (actor-store actor))))
 
