@@ -1,7 +1,5 @@
 (in-package #:thespis)
 
-(declaim (optimize (debug 3)))
-
 (defvar *self*)
 
 (defstruct close-signal)
