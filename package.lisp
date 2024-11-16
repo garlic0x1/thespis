@@ -13,6 +13,7 @@
    #:define-actor          ; MACRO
    ;; Actor slots, you probably won't need these
    #:actor-behav           ; ACCESSOR
+   #:actor-fail            ; ACCESSOR
    #:actor-queue           ; ACCESSOR
    #:actor-sem             ; ACCESSOR
    #:actor-thread          ; ACCESSOR
