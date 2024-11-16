@@ -45,6 +45,18 @@
     (is (equal '(:x -1 :y 100 :z 3) (ask actor)))
     (close-actor actor)))
 
+(test :multiple-values
+  (define-actor multivaluer ((prev 0)) (next)
+    (multiple-value-prog1 (values prev next)
+      (setf prev next)))
+
+  (let ((actor (multivaluer)))
+    (send actor 1)
+    (is (equal '(1 2) (multiple-value-list (ask actor 2))))
+    (send actor 1)
+    (close-actor actor)
+    (is (equal '(2 1) (multiple-value-list (join-actor actor))))))
+
 (test :pong
   (let (pinger ponger (result 0))
     (define-actor pinger () (c)

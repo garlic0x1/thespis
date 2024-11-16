@@ -39,7 +39,7 @@
          (process-message actor (sync-signal-msg sig))
          (bt2:signal-semaphore (sync-signal-sem sig)))
         (close-signal
-         (return-from run-actor (apply #'values (actor-store actor))))
+         (return-from run-actor))
         (null
          (bt2:wait-on-semaphore (actor-sem actor)))))))
 
@@ -65,7 +65,7 @@
 (defun join-actor (actor)
   "Wait for an actor to finish computing."
   (bt2:join-thread (actor-thread actor))
-  (actor-store actor))
+  (apply #'values (actor-store actor)))
 
 (defun destroy-actor (actor)
   "Immediately destroy an actor's thread."
