@@ -1,24 +1,6 @@
-(defpackage #:thespis
-  (:use #:cl)
-  (:export #:actor                 ; STRUCT
-           #:*self*                ; VARIABLE
-           #:send                  ; FUNCTION
-           #:ask                   ; FUNCTION
-           #:close-actor           ; FUNCTION
-           #:join-actor            ; FUNCTION
-           #:destroy-actor         ; FUNCTION
-           #:close-and-join-actors ; FUNCTION
-           #:define-actor          ; MACRO
-           ;; Actor slots, you probably won't need these
-           #:actor-behav           ; ACCESSOR
-           #:actor-queue           ; ACCESSOR
-           #:actor-lock            ; ACCESSOR
-           #:actor-cv              ; ACCESSOR
-           #:actor-thread          ; ACCESSOR
-           #:actor-open-p          ; ACCESSOR
-           #:actor-store           ; ACCESSOR
-           ))
 (in-package #:thespis)
+
+(declaim (optimize (debug 3)))
 
 (defvar *self*)
 
@@ -28,17 +10,16 @@
   (msg nil :type list))
 
 (defstruct sync-signal
-  (msg      nil                                    :type list)
-  (callback (error ":callback must be specified.") :type function))
+  (msg       nil                                     :type list)
+  (semaphore (error ":semaphore must be specified.") :type bt2:semaphore))
 
 (defstruct (actor (:constructor make-actor%))
-  (behav  (error ":behav must be specified.") :type function)
-  (fail   #'error                             :type function)
-  (queue  (queues:make-queue :simple-cqueue)  :type queues:simple-cqueue)
-  (open-p t                                   :type boolean)
-  (store  nil                                 :type list)
-  (lock   (bt2:make-lock)                     :type bt2:lock)
-  (cv     (bt2:make-condition-variable)       :type bt2:condition-variable)
+  (behav     (error "Must provide :behav")     :type function)
+  (fail      #'error                           :type function)
+  (queue     (error "Must provide :queue")     :type q:simple-cqueue)
+  (openp     t                                 :type boolean)
+  (store     nil                               :type list)
+  (semaphore (error "Must provide :semaphore") :type bt2:semaphore)
   (thread nil                                 :type (or null bt2:thread)))
 
 (defun process-message (actor msg)
@@ -51,36 +32,37 @@
 
 (defun run-actor (actor)
   "Run main event loop for actor."
-  (loop (bt2:thread-yield)
-        (let ((sig (queues:qpop (actor-queue actor))))
-          (etypecase sig
-            (async-signal
-             (process-message actor (async-signal-msg sig)))
-            (sync-signal
-             (process-message actor (sync-signal-msg sig))
-             (funcall (sync-signal-callback sig)))
-            (close-signal
-             (return-from run-actor (apply #'values (actor-store actor))))
-            (null
-             (bt2:with-lock-held ((actor-lock actor))
-               (bt2:condition-wait (actor-cv actor) (actor-lock actor))))))))
+  (loop
+    (let ((sig (q:qpop (actor-queue actor))))
+      (etypecase sig
+        (async-signal
+         (process-message actor (async-signal-msg sig)))
+        (sync-signal
+         (process-message actor (sync-signal-msg sig))
+         (bt2:signal-semaphore (sync-signal-semaphore sig)))
+        (close-signal
+         (return-from run-actor (apply #'values (actor-store actor))))
+        (null
+         (bt2:wait-on-semaphore (actor-semaphore actor)))))))
 
 (defun make-actor (behav)
   "Make an actor and run event loop."
-  (let ((actor (make-actor% :behav behav)))
+  (let ((actor (make-actor% :behav behav
+                            :semaphore (bt2:make-semaphore)
+                            :queue (q:make-queue :simple-cqueue))))
     (setf (actor-thread actor) (bt2:make-thread (lambda () (run-actor actor))))
     actor))
 
 (defun send-signal (actor sig)
-  (with-slots (queue open-p cv) actor
-    (unless open-p (error (format nil "Actor ~w is closed" actor)))
-    (queues:qpush queue sig)
-    (bt2:condition-notify cv)))
+  (unless (actor-openp actor)
+    (error (format nil "Message sent to closed actor: ~w" actor)))
+  (q:qpush (actor-queue actor) sig)
+  (bt2:signal-semaphore (actor-semaphore actor)))
 
 (defun close-actor (actor)
   "Send a close-signal to an actor."
   (send-signal actor (make-close-signal))
-  (setf (actor-open-p actor) nil))
+  (setf (actor-openp actor) nil))
 
 (defun join-actor (actor)
   "Wait for an actor to finish computing."
@@ -101,11 +83,9 @@
 
 (defun ask (actor &rest args)
   "Syncronously send a message and await a response from an actor"
-  (let* ((lock (bt2:make-lock))
-         (cv (bt2:make-condition-variable))
-         (callback (lambda () (bt2:condition-notify cv))))
-    (send-signal actor (make-sync-signal :msg args :callback callback))
-    (bt2:with-lock-held (lock) (bt2:condition-wait cv lock))
+  (let ((sem (bt2:make-semaphore)))
+    (send-signal actor (make-sync-signal :msg args :semaphore sem))
+    (bt2:wait-on-semaphore sem)
     (apply #'values (actor-store actor))))
 
 (defmacro define-actor (name state args &body body)

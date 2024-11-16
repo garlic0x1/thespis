@@ -21,6 +21,7 @@
     (is (= -1 (ask actor 1)))
     (close-actor actor)))
 
+
 (test :lambda-rest
   (define-actor square-summer ((c 0)) (&rest args)
     (incf c (apply #'+ (mapcar (lambda (x) (* x x)) args))))
@@ -90,3 +91,12 @@
           (lambda (c) (declare (ignore c)) :failed))
     (is (eq :failed (ask actor 0)))
     (close-actor actor)))
+
+(test :closed-actor
+  (define-actor closer () (x)
+    x)
+
+  (let ((actor (closer)))
+    (close-actor actor)
+    (handler-case (send actor 'x)
+      (error (c) (is (typep c 'simple-error))))))
