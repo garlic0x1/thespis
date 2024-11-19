@@ -95,7 +95,7 @@ is the code to handle messages."
        (defun ,behav ,args
          ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
          ,@body)
-       (defun ,name ()
+       (defun ,name (&key name)
          (let ((actor (make-actor :behav ',behav
                                   :sem (bt2:make-semaphore)
                                   :queue (q:make-queue :simple-cqueue))))
@@ -105,4 +105,6 @@ is the code to handle messages."
                     (let ,state
                       ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
                       (run-actor actor)))))
-           actor)))))
+           (if name
+               (setf (gethash name *registry*) actor)
+               actor))))))
