@@ -56,7 +56,7 @@
   (q:qpush (actor-queue actor) sig)
   (bt2:signal-semaphore (actor-sem actor)))
 
-(defun close-actor (actor &key joinp &aux (actor (resolve-actor actor)))
+(defun close-actor (actor &aux (actor (resolve-actor actor)))
   "Send a close-signal to an actor."
   (send-signal actor (make-close-signal))
   (setf (actor-openp actor) nil))
