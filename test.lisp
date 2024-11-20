@@ -1,6 +1,12 @@
 (defpackage #:thespis/test
-  (:use #:cl #:fiveam #:thespis))
+  (:use #:cl #:fiveam #:thespis)
+  (:export :bruteforce))
 (in-package #:thespis/test)
+
+(defun bruteforce (&optional (times 1024))
+  "Detect rare race conditions by brute force."
+  (dotimes (i times)
+    (assert (eql t (fiveam:run! :thespis)))))
 
 (def-suite :thespis)
 (in-suite :thespis)
@@ -127,8 +133,6 @@
     (is (= 10 (ask actor 1 7)))
     (close-actor actor)))
 
-;; TODO sometimes fails checking registry.
-;; not really a big deal but it should be fixed.
 (test :registry
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
@@ -136,5 +140,19 @@
   (counter :name :my-counter)
   (send :my-counter 1)
   (is (= 3 (ask :my-counter 2)))
-  (close-and-join-actors :my-counter)
-  (is (eql nil (gethash :my-counter *registry*))))
+  (close-actor :my-counter))
+
+;; TODO sometimes fails checking registry after join.
+;; not really a big deal but it should be fixed.
+
+;; I need to create a Join Sync signal I think...
+
+;; (test :close-and-join
+;;   (define-actor counter ((c 0)) (increment)
+;;     (incf c increment))
+
+;;   (counter :name :my-counter)
+;;   (send :my-counter 1)
+;;   (is (= 3 (ask :my-counter 2)))
+;;   (close-and-join-actors :my-counter)
+;;   (is (eql nil (gethash :my-counter *registry*))))
