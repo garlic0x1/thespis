@@ -3,6 +3,8 @@
   (:export
    ;; thespis.lisp
    #:actor                 ; STRUCT
+   #:actor-p               ; PREDICATE
+   #:*registry*            ; VARIABLE
    #:*self*                ; SPECIAL VARIABLE
    #:send                  ; FUNCTION
    #:ask                   ; FUNCTION
@@ -13,6 +15,7 @@
    #:define-actor          ; MACRO
    ;; Actor slots, you probably won't need these
    #:actor-behav           ; ACCESSOR
+   #:actor-name            ; ACCESSOR
    #:actor-fail            ; ACCESSOR
    #:actor-queue           ; ACCESSOR
    #:actor-sem             ; ACCESSOR
