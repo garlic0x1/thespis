@@ -10,16 +10,17 @@
   (msg nil :type list))
 
 (defstruct sync-signal
-  (msg nil                               :type list)
-  (sem (error "Must provide :semaphore") :type bt2:semaphore))
+  (msg    nil                           :type list)
+  (sem    (error "Must provide :sem")   :type bt2:semaphore))
 
 (defstruct actor
   (behav  (error "Must provide :behav") :type symbol)
+  (name   nil                           :type (or nil symbol keyword))
   (fail   #'error                       :type function)
-  (queue  (error "Must provide :queue") :type q:simple-cqueue)
+  (queue  (q:make-queue :simple-cqueue) :type q:simple-cqueue)
   (openp  t                             :type boolean)
   (store  nil                           :type list)
-  (sem    (error "Must provide :sem")   :type bt2:semaphore)
+  (sem    (bt2:make-semaphore)          :type bt2:semaphore)
   (thread nil                           :type (or null bt2:thread)))
 
 (defun resolve-actor (actor)
@@ -31,24 +32,23 @@
   (let ((*self* actor))
     (setf (actor-store actor)
           (multiple-value-list
-           (handler-case
-               (apply (actor-behav actor) msg)
+           (handler-case (apply (actor-behav actor) msg)
              (error (c) (funcall (actor-fail actor) c)))))))
 
 (defun run-actor (actor)
   "Run main event loop for actor."
-  (loop
-    (let ((sig (q:qpop (actor-queue actor))))
-      (etypecase sig
-        (async-signal
-         (process-message actor (async-signal-msg sig)))
-        (sync-signal
-         (process-message actor (sync-signal-msg sig))
-         (bt2:signal-semaphore (sync-signal-sem sig)))
-        (close-signal
-         (return-from run-actor))
-        (null
-         (bt2:wait-on-semaphore (actor-sem actor)))))))
+  (loop (let ((sig (q:qpop (actor-queue actor))))
+          (etypecase sig
+            (async-signal
+             (process-message actor (async-signal-msg sig)))
+            (sync-signal
+             (process-message actor (sync-signal-msg sig))
+             (bt2:signal-semaphore (sync-signal-sem sig)))
+            (close-signal
+             (remhash (actor-name actor) *registry*)
+             (return-from run-actor))
+            (null
+             (bt2:wait-on-semaphore (actor-sem actor)))))))
 
 (defun send-signal (actor sig)
   (unless (actor-openp actor)
@@ -68,6 +68,7 @@
 
 (defun destroy-actor (actor &aux (actor (resolve-actor actor)))
   "Immediately destroy an actor's thread."
+  (remhash (actor-name actor) *registry*)
   (bt2:destroy-thread (actor-thread actor)))
 
 (defun close-and-join-actors (&rest actors)
@@ -96,9 +97,9 @@ is the code to handle messages."
          ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
          ,@body)
        (defun ,name (&key name)
-         (let ((actor (make-actor :behav ',behav
-                                  :sem (bt2:make-semaphore)
-                                  :queue (q:make-queue :simple-cqueue))))
+         (when (gethash name *registry*)
+           (error "Actor named ~a already exists." name))
+         (let ((actor (make-actor :behav ',behav :name name)))
            (setf (actor-thread actor)
                  (bt2:make-thread
                   (lambda ()

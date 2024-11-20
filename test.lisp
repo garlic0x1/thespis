@@ -122,4 +122,19 @@
       (incf c (1- increment)))
     (send actor 3)
     (is (= 3 (ask actor 1)))
+    (define-actor counter ((c 32)) (increment times)
+      (incf c (* times increment)))
+    (is (= 10 (ask actor 1 7)))
     (close-actor actor)))
+
+;; TODO sometimes fails checking registry.
+;; not really a big deal but it should be fixed.
+(test :registry
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
+
+  (counter :name :my-counter)
+  (send :my-counter 1)
+  (is (= 3 (ask :my-counter 2)))
+  (close-and-join-actors :my-counter)
+  (is (eql nil (gethash :my-counter *registry*))))
