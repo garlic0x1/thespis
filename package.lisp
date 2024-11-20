@@ -3,6 +3,7 @@
   (:export
    ;; thespis.lisp
    #:actor                 ; STRUCT
+   #:actor-p               ; PREDICATE
    #:*self*                ; SPECIAL VARIABLE
    #:send                  ; FUNCTION
    #:ask                   ; FUNCTION

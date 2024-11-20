@@ -111,3 +111,15 @@
     (close-actor actor)
     (handler-case (send actor 'x)
       (error (c) (is (typep c 'simple-error))))))
+
+(test :redefine-actor
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
+
+  (let ((actor (counter)))
+    (ask actor 1)
+    (define-actor counter ((c 0)) (increment)
+      (incf c (1- increment)))
+    (send actor 3)
+    (is (= 3 (ask actor 1)))
+    (close-actor actor)))

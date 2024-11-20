@@ -88,7 +88,7 @@
 (defmacro define-actor (name state args &body body)
   "This macro creates a function named `name' that spawns an instance of
 the actor.  `state' is a let-list of mutable data owned by the
-actor. `args' is a lambda-list to destructure messages with, and `body'
+actor.  `args' is a lambda-list to destructure messages with, and `body'
 is the code to handle messages."
   (let ((behav (intern (string-upcase (format nil "~a-behav" name)))))
     `(progn
