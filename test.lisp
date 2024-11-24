@@ -147,12 +147,12 @@
 
 ;; I need to create a Join Sync signal I think...
 
-;; (test :close-and-join
-;;   (define-actor counter ((c 0)) (increment)
-;;     (incf c increment))
+(test :close-and-join
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
 
-;;   (counter :name :my-counter)
-;;   (send :my-counter 1)
-;;   (is (= 3 (ask :my-counter 2)))
-;;   (close-and-join-actors :my-counter)
-;;   (is (eql nil (gethash :my-counter *registry*))))
+  (counter :name :my-counter)
+  (send :my-counter 1)
+  (is (= 3 (ask :my-counter 2)))
+  (close-and-join-actors :my-counter)
+  (is (eql nil (gethash :my-counter *registry*))))

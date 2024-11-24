@@ -36,36 +36,33 @@ instantly.  The `ask` function is synchronous and waits for its
 message to be processed and returns the result of the actor's
 processing.
 
-* TODO Pong Example
+**** TODO Pong Example
 
 Here is a little pong example, I might add a more convenient way to
 communicate with singleton actors:
 
 #+begin_src lisp
-(defun pong ()
-  (let (*pinger* *ponger*)
-    (define-actor pinger () (c)
-      (format t "~a: ping!~%" c)
-      (force-output)
-      (sleep 0.2)
-      (if (< c 10)
-          (send *ponger* (1+ c))
-          (progn (close-actor *ponger*)
-                 (close-actor *pinger*))))
+(define-actor pinger () (c)
+  (format t "~a: ping!~%" c)
+  (sleep 0.2)
+  (if (< c 10)
+      (send :ponger (1+ c))
+      (progn (close-actor :ponger)
+             (close-actor :pinger))))
 
-    (define-actor ponger () (c)
-      (format t "~a: pong!~%" c)
-      (force-output)
-      (sleep 0.2)
-      (if (< c 10)
-          (send *pinger* (1+ c))
-          (progn (close-actor *ponger*)
-                 (close-actor *pinger*))))
+(define-actor ponger () (c)
+  (format t "~a: pong!~%" c)
+  (sleep 0.2)
+  (if (< c 10)
+      (send :pinger (1+ c))
+      (progn (close-actor :ponger)
+             (close-actor :pinger))))
 
-    (setf *ponger* (ponger) *pinger* (pinger))
-    (send *ponger* 0)
-    (join-actor *ponger*)
-    (join-actor *pinger*)))
+;; Spawn global named actors
+(pinger :name :pinger)
+(ponger :name :ponger)
+
+(send :ponger 0)
 #+end_src
 
 * TODO document *self*
