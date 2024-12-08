@@ -9,10 +9,14 @@
 
 (asdf:defsystem #:thespis/test
   :depends-on (#:thespis #:fiasco)
-  :components ((:file "test"))
+  :components ((:module "test"
+                :components ((:file "basic")
+                             (:file "fuzz"))))
   :perform (asdf:test-op
             (o c)
             (multiple-value-bind (stat result)
-                (uiop:symbol-call :fiasco :run-tests '(:thespis/test))
+                (uiop:symbol-call :fiasco :run-tests
+                                  '(:thespis/test/basic
+                                    :thespis/test/fuzz))
               (print result)
               (assert (eql t stat)))))
