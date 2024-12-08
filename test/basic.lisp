@@ -1,6 +1,5 @@
 (fiasco:define-test-package #:thespis/test/basic
-  (:use #:thespis)
-  (:export #:bruteforce))
+  (:use #:thespis))
 (in-package #:thespis/test/basic)
 
 (deftest test-counter ()
