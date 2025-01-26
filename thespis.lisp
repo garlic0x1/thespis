@@ -23,19 +23,17 @@
   (sem    (bt2:make-semaphore)          :type bt2:semaphore)
   (thread nil                           :type (or null bt2:thread)))
 
-(defun resolve-actor (actor)
-  (etypecase actor
-    (actor actor)
-    (symbol (gethash actor *registry*))))
+(defmethod resolve-actor ((actor symbol))
+  (gethash actor *registry*))
 
-(defun process-message (actor msg)
+(defmethod process-message ((actor actor) msg)
   (let ((*self* actor))
     (setf (actor-store actor)
           (multiple-value-list
            (handler-case (apply (actor-behav actor) msg)
              (error (c) (funcall (actor-fail actor) c)))))))
 
-(defun run-actor (actor)
+(defmethod run-actor ((actor actor))
   "Run main event loop for actor."
   (loop (let ((sig (q:qpop (actor-queue actor))))
           (etypecase sig
@@ -50,41 +48,56 @@
             (null
              (bt2:wait-on-semaphore (actor-sem actor)))))))
 
-(defun send-signal (actor sig)
+(defmethod send-signal ((actor actor) sig)
   (unless (actor-openp actor)
     (error (format nil "Message sent to closed actor: ~w" actor)))
   (q:qpush (actor-queue actor) sig)
   (bt2:signal-semaphore (actor-sem actor)))
 
-(defun close-actor (actor &aux (actor (resolve-actor actor)))
-  "Send a close-signal to an actor."
-  (send-signal actor (make-close-signal))
-  (setf (actor-openp actor) nil))
+(defgeneric close-actor (actor)
+  (:documentation "Send a close-signal to an actor.")
+  (:method ((actor actor))
+    (send-signal actor (make-close-signal))
+    (setf (actor-openp actor) nil))
+  (:method ((actor t))
+    (close-actor (resolve-actor actor))))
 
-(defun join-actor (actor &aux (actor (resolve-actor actor)))
-  "Wait for an actor to finish computing."
-  (bt2:join-thread (actor-thread actor))
-  (apply #'values (actor-store actor)))
+(defgeneric join-actor (actor)
+  (:documentation "Wait for an actor to finish computing.")
+  (:method ((actor actor))
+    (bt2:join-thread (actor-thread actor))
+    (apply #'values (actor-store actor)))
+  (:method ((actor t))
+    (join-actor (resolve-actor actor))))
 
-(defun destroy-actor (actor &aux (actor (resolve-actor actor)))
-  "Immediately destroy an actor's thread."
-  (remhash (actor-name actor) *registry*)
-  (bt2:destroy-thread (actor-thread actor)))
+(defgeneric destroy-actor (actor)
+  (:documentation "Immediately destroy an actor's thread.")
+  (:method ((actor actor))
+    (remhash (actor-name actor) *registry*)
+    (bt2:destroy-thread (actor-thread actor)))
+  (:method ((actor t))
+    (destroy-actor (resolve-actor actor))))
 
 (defun close-and-join-actors (&rest actors)
   (mapc #'close-actor actors)
   (mapc #'join-actor actors))
 
-(defun send (actor &rest args &aux (actor (resolve-actor actor)))
-  "Asyncronously send a message to an actor."
-  (send-signal actor (make-async-signal :msg args)))
+(defgeneric send (actor &rest args)
+  (:documentation "Asyncronously send a message to an actor.")
+  (:method ((actor actor) &rest args)
+    (send-signal actor (make-async-signal :msg args)))
+  (:method ((actor t) &rest args)
+    (apply #'send (cons (resolve-actor actor) args))))
 
-(defun ask (actor &rest args &aux (actor (resolve-actor actor)))
-  "Syncronously send a message and await a response from an actor"
-  (let ((sem (bt2:make-semaphore)))
-    (send-signal actor (make-sync-signal :msg args :sem sem))
-    (bt2:wait-on-semaphore sem)
-    (apply #'values (actor-store actor))))
+(defgeneric ask (actor &rest args)
+  (:documentation "Syncronously send a message and await a response from an actor")
+  (:method ((actor actor) &rest args)
+    (let ((sem (bt2:make-semaphore)))
+      (send-signal actor (make-sync-signal :msg args :sem sem))
+      (bt2:wait-on-semaphore sem)
+      (apply #'values (actor-store actor))))
+  (:method ((actor t) &rest args)
+    (apply #'ask (cons (resolve-actor actor) args))))
 
 (defmacro define-actor (name state args &body body)
   "This macro creates a function named `name' that spawns an instance of
