@@ -1,12 +1,6 @@
-(fiasco:define-test-package #:thespis/test
-  (:use #:thespis)
-  (:export #:bruteforce))
-(in-package #:thespis/test)
-
-(defun bruteforce (&optional (times 1024))
-  "Detect rare race conditions by brute force."
-  (dotimes (i times)
-    (assert (eql t (fiasco:run-tests :thespis/test)))))
+(fiasco:define-test-package #:thespis/test/basic
+  (:use #:thespis))
+(in-package #:thespis/test/basic)
 
 (deftest test-counter ()
   (define-actor counter ((c 0)) (increment)

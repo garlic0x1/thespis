@@ -3,7 +3,7 @@
 
 Thespis is a threaded actor library for Common Lisp.
 
-* TODO Installation
+* Installation
 
 With [[https://ultralisp.org][Ultralisp]] installed:
 
