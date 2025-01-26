@@ -23,8 +23,19 @@
   (sem    (bt2:make-semaphore)          :type bt2:semaphore)
   (thread nil                           :type (or null bt2:thread)))
 
-(defmethod resolve-actor ((actor symbol))
-  (gethash actor *registry*))
+(defstruct dispatcher
+  (name    nil             :type (or nil symbol keyword))
+  (workers nil             :type list)
+  (lock    (bt2:make-lock) :type bt2:lock))
+
+(defgeneric resolve-actor (actor)
+  (:method ((actor dispatcher))
+    (reduce #'min
+            (dispatcher-workers actor)
+            :initial-value -1
+            :key (lambda (actor) (q:qsize (actor-queue actor)))))
+  (:method ((actor symbol))
+    (gethash actor *registry*)))
 
 (defmethod process-message ((actor actor) msg)
   (let ((*self* actor))
@@ -109,16 +120,23 @@ is the code to handle messages."
        (defun ,behav ,args
          ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
          ,@body)
-       (defun ,name (&key name)
+       (defun ,name (&key name workers)
          (when (gethash name *registry*)
            (error "Actor named ~a already exists." name))
-         (let ((actor (make-actor :behav ',behav :name name)))
-           (setf (actor-thread actor)
-                 (bt2:make-thread
-                  (lambda ()
-                    (let ,state
-                      ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
-                      (run-actor actor)))))
-           (if name
-               (setf (gethash name *registry*) actor)
-               actor))))))
+         (if workers
+             (let ((dispatcher (make-dispatcher :name name)))
+               (dotimes (i workers)
+                 (push (,name) (dispatcher-workers dispatcher)))
+               (if name
+                   (setf (gethash name *registry*) dispatcher)
+                   dispatcher))
+             (let ((actor (make-actor :behav ',behav :name name)))
+               (setf (actor-thread actor)
+                     (bt2:make-thread
+                      (lambda ()
+                        (let ,state
+                          ,@(mapcar (lambda (pair) `(declare (special ,(car pair)))) state)
+                          (run-actor actor)))))
+               (if name
+                   (setf (gethash name *registry*) actor)
+                   actor)))))))
