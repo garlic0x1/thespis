@@ -1,5 +1,7 @@
 (defpackage #:thespis
   (:use #:cl)
+  (:local-nicknames
+   (#:a #:alexandria))
   (:export
    ;; thespis.lisp
    #:actor                 ; STRUCT

@@ -2,7 +2,7 @@
   :author "garlic0x1"
   :description "Threaded actors for Common Lisp"
   :license "MIT"
-  :depends-on (#:bordeaux-threads #:queues.simple-cqueue)
+  :depends-on (#:alexandria #:bordeaux-threads #:queues.simple-cqueue)
   :components ((:file "package")
                (:file "thespis"))
   :in-order-to ((test-op (test-op #:thespis/test))))

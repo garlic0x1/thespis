@@ -26,14 +26,14 @@
 (defstruct dispatcher
   (name    nil             :type (or nil symbol keyword))
   (workers nil             :type list)
+  (openp   t               :type boolean)
   (lock    (bt2:make-lock) :type bt2:lock))
 
 (defgeneric resolve-actor (actor)
   (:method ((actor dispatcher))
-    (reduce #'min
-            (dispatcher-workers actor)
-            :initial-value -1
-            :key (lambda (actor) (q:qsize (actor-queue actor)))))
+    (a:extremum (dispatcher-workers actor)
+                #'<
+                :key (lambda (actor) (q:qsize (actor-queue actor)))))
   (:method ((actor symbol))
     (gethash actor *registry*)))
 
@@ -70,6 +70,11 @@
   (:method ((actor actor))
     (send-signal actor (make-close-signal))
     (setf (actor-openp actor) nil))
+  (:method ((actor dispatcher))
+    (remhash (dispatcher-name actor) *registry*)
+    (dolist (worker (dispatcher-workers actor))
+      (close-actor worker))
+    (setf (dispatcher-openp actor) nil))
   (:method ((actor t))
     (close-actor (resolve-actor actor))))
 
@@ -78,6 +83,8 @@
   (:method ((actor actor))
     (bt2:join-thread (actor-thread actor))
     (apply #'values (actor-store actor)))
+  (:method ((actor dispatcher))
+    (mapcar #'join-actor (dispatcher-workers actor)))
   (:method ((actor t))
     (join-actor (resolve-actor actor))))
 
@@ -86,12 +93,15 @@
   (:method ((actor actor))
     (remhash (actor-name actor) *registry*)
     (bt2:destroy-thread (actor-thread actor)))
+  (:method ((actor dispatcher))
+    (remhash (dispatcher-name actor) *registry*)
+    (mapcar #'destroy-actor (dispatcher-workers actor)))
   (:method ((actor t))
     (destroy-actor (resolve-actor actor))))
 
 (defun close-and-join-actors (&rest actors)
   (mapc #'close-actor actors)
-  (mapc #'join-actor actors))
+  (mapcar #'join-actor actors))
 
 (defgeneric send (actor &rest args)
   (:documentation "Asyncronously send a message to an actor.")
