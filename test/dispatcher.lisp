@@ -5,8 +5,8 @@
 (defun ~= (a b)
   (>= 2 (abs (- a b))))
 
-(deftest test-dispatcher-balancing ()
-  "Make sure all the workers share."
+(deftest test-dispatcher-balanced ()
+  "Make sure all the workers share equally for similarly timed jobs."
   (define-actor counter ((c 0)) (increment)
     (sleep 0.025)
     (incf c increment))
@@ -15,8 +15,10 @@
     (dotimes (i 40) (send actor 1))
     (close-actor actor)
     (let ((stores (join-actor actor)))
-      (is (~= (first stores) (second stores)))))
+      (is (~= (first stores) (second stores))))))
 
+(deftest test-dispatcher-unbalanced ()
+  "Make sure a worker with slow jobs doesn't fill up."
   (define-actor sleeper ((c 0)) (time)
     (sleep time)
     (incf c))
@@ -28,6 +30,7 @@
     (is (equal '((5 20)) (close-and-join-actors actor)))))
 
 (deftest test-dispatcher-registry ()
+  "Test registering a dispatcher with a global name."
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
 

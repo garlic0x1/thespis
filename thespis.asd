@@ -11,12 +11,14 @@
   :depends-on (#:thespis #:fiasco)
   :components ((:module "test"
                 :components ((:file "basic")
+                             (:file "dispatcher")
                              (:file "fuzz"))))
   :perform (asdf:test-op
             (o c)
             (multiple-value-bind (stat result)
                 (uiop:symbol-call :fiasco :run-tests
                                   '(:thespis/test/basic
+                                    :thespis/test/dispatcher
                                     :thespis/test/fuzz))
               (print result)
               (assert (eql t stat)))))
