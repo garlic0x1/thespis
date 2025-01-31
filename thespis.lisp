@@ -4,6 +4,8 @@
 
 (defvar *registry* (make-hash-table))
 
+(define-condition unregister (condition) ())
+
 (defstruct close-signal)
 
 (defstruct async-signal
@@ -26,8 +28,7 @@
 (defstruct dispatcher
   (name    nil             :type (or nil symbol keyword))
   (workers nil             :type list)
-  (openp   t               :type boolean)
-  (lock    (bt2:make-lock) :type bt2:lock))
+  (openp   t               :type boolean))
 
 (defgeneric resolve-actor (actor)
   (:method ((actor dispatcher))
@@ -46,18 +47,21 @@
 
 (defmethod run-actor ((actor actor))
   "Run main event loop for actor."
-  (loop (let ((sig (q:qpop (actor-queue actor))))
-          (etypecase sig
-            (async-signal
-             (process-message actor (async-signal-msg sig)))
-            (sync-signal
-             (process-message actor (sync-signal-msg sig))
-             (bt2:signal-semaphore (sync-signal-sem sig)))
-            (close-signal
-             (remhash (actor-name actor) *registry*)
-             (return-from run-actor))
-            (null
-             (bt2:wait-on-semaphore (actor-sem actor)))))))
+  (handler-case
+      (loop (let ((sig (q:qpop (actor-queue actor))))
+              (etypecase sig
+                (async-signal
+                 (process-message actor (async-signal-msg sig)))
+                (sync-signal
+                 (process-message actor (sync-signal-msg sig))
+                 (bt2:signal-semaphore (sync-signal-sem sig)))
+                (close-signal
+                 (signal (make-instance 'unregister)))
+                (null
+                 (bt2:wait-on-semaphore (actor-sem actor))))))
+    (unregister (c)
+      (declare (ignore c))
+      (remhash (actor-name actor) *registry*))))
 
 (defmethod send-signal ((actor actor) sig)
   (unless (actor-openp actor)
@@ -69,12 +73,13 @@
   (:documentation "Send a close-signal to an actor.")
   (:method ((actor actor))
     (send-signal actor (make-close-signal))
-    (setf (actor-openp actor) nil))
+    (setf (actor-openp actor) nil)
+    actor)
   (:method ((actor dispatcher))
-    (remhash (dispatcher-name actor) *registry*)
     (dolist (worker (dispatcher-workers actor))
       (close-actor worker))
-    (setf (dispatcher-openp actor) nil))
+    (setf (dispatcher-openp actor) nil)
+    actor)
   (:method ((actor t))
     (close-actor (resolve-actor actor))))
 
@@ -84,24 +89,25 @@
     (bt2:join-thread (actor-thread actor))
     (apply #'values (actor-store actor)))
   (:method ((actor dispatcher))
-    (mapcar #'join-actor (dispatcher-workers actor)))
+    (prog1 (mapcar #'join-actor (dispatcher-workers actor))
+      (remhash (dispatcher-name actor) *registry*)))
   (:method ((actor t))
     (join-actor (resolve-actor actor))))
 
 (defgeneric destroy-actor (actor)
   (:documentation "Immediately destroy an actor's thread.")
   (:method ((actor actor))
-    (remhash (actor-name actor) *registry*)
-    (bt2:destroy-thread (actor-thread actor)))
+    (bt2:interrupt-thread (actor-thread actor)
+                          (lambda ()
+                            (signal (make-instance 'unregister)))))
   (:method ((actor dispatcher))
-    (remhash (dispatcher-name actor) *registry*)
-    (mapcar #'destroy-actor (dispatcher-workers actor)))
+    (prog1 (mapcar #'destroy-actor (dispatcher-workers actor))
+      (remhash (dispatcher-name actor) *registry*)))
   (:method ((actor t))
     (destroy-actor (resolve-actor actor))))
 
 (defun close-and-join-actors (&rest actors)
-  (mapc #'close-actor actors)
-  (mapcar #'join-actor actors))
+  (mapcar #'join-actor (mapcar #'close-actor actors)))
 
 (defgeneric send (actor &rest args)
   (:documentation "Asyncronously send a message to an actor.")

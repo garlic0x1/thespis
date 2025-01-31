@@ -133,17 +133,18 @@
   (is (= 3 (ask :my-counter 2)))
   (close-actor :my-counter))
 
-;; TODO sometimes fails checking registry after join.
-;; not really a big deal but it should be fixed.
+(deftest test-close-and-join ()
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
 
-;; I need to create a Join Sync signal I think...
-
-;; (deftest test-close-and-join ()
-;;   (define-actor counter ((c 0)) (increment)
-;;     (incf c increment))
-
-;;   (counter :name :my-counter)
-;;   (send :my-counter 1)
-;;   (is (= 3 (ask :my-counter 2)))
-;;   (close-and-join-actors :my-counter)
-;;   (is (eql nil (gethash :my-counter *registry*))))
+  (counter :name :my-counter)
+  (send :my-counter 1)
+  (print "asking")
+  (force-output)
+  (is (= 3 (ask :my-counter 2)))
+  (print "joining")
+  (force-output)
+  (close-and-join-actors :my-counter)
+  (print "checking")
+  (force-output)
+  (is (eql nil (gethash :my-counter *registry*))))
