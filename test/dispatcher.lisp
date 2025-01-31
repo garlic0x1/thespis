@@ -7,28 +7,34 @@
 
 (deftest test-dispatcher-balanced ()
   "Make sure all the workers share equally for similarly timed jobs."
-  (define-actor counter ((c 0)) (increment)
-    (sleep 0.025)
-    (incf c increment))
+  (let ((lock (bt2:make-lock)))
+    (define-actor counter ((c 0)) (increment)
+      (bt2:with-lock-held (lock)
+        (incf c increment)))
 
-  (let ((actor (counter :workers 2)))
-    (dotimes (i 40) (send actor 1))
-    (close-actor actor)
-    (let ((stores (join-actor actor)))
-      (is (~= (first stores) (second stores))))))
+    (let ((actor (counter :workers 2)))
+      (bt2:with-lock-held (lock)
+        (dotimes (i 40) (send actor 1)))
+      (close-actor actor)
+      (let ((stores (join-actor actor)))
+        (is (~= (first stores) (second stores)))))))
 
 (deftest test-dispatcher-unbalanced ()
   "Make sure a worker with slow jobs doesn't fill up."
-  (define-actor sleeper ((c 0)) (time)
-    (sleep time)
-    (incf c))
+  (define-actor waiter ((c 0)) (lock)
+    (if (bt2:lockp lock)
+        (bt2:with-lock-held (lock)
+          (incf c))
+        (incf c)))
 
-  (let ((actor (sleeper :workers 2)))
-    (dotimes (i 5)
-      (send (first (thespis::dispatcher-workers actor)) 5))
-    (dotimes (i 19) (sleep 0.001) (send actor 0))
-    (is (= 20 (ask actor 0)))
-    (destroy-actor actor)))
+  (let ((actor (waiter :workers 2))
+        (lock (bt2:make-lock)))
+    (bt2:with-lock-held (lock)
+      (dotimes (i 10)
+        (send (first (thespis::dispatcher-workers actor)) lock))
+      (dotimes (i 5)
+        (send actor nil)))
+    (is (equal '((10 5)) (close-and-join-actors actor)))))
 
 (deftest test-dispatcher-registry ()
   "Test registering a dispatcher with a global name."
@@ -53,7 +59,10 @@
 
   (send :my-counter 1)
   (send :my-counter 1)
-  (is (= 6 (reduce #'+ (join-actor (close-actor :my-counter))))))
+
+  (is (= 6 (reduce #'+
+                   (mapcar (lambda (x) (or x 0))
+                           (join-actor (close-actor :my-counter)))))))
 
 (deftest test-dispatcher-close-and-join ()
   (define-actor counter ((c 0)) (increment)
@@ -65,8 +74,7 @@
 
 (deftest test-closed-actor ()
   "Sending messages to a closed dispatcher signals an error."
-  (define-actor closer () (x)
-    x)
+  (define-actor closer () (x) x)
 
   (let ((actor (closer :workers 2)))
     (close-actor actor)
