@@ -3,6 +3,7 @@
 (in-package #:thespis/test/basic)
 
 (deftest test-counter ()
+  "The most basic stateful usage."
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
 
@@ -19,6 +20,7 @@
     (close-actor actor)))
 
 (deftest test-lambda-rest ()
+  "Make sure lambda lists work."
   (define-actor square-summer ((c 0)) (&rest args)
     (incf c (apply #'+ (mapcar (lambda (x) (* x x)) args))))
 
@@ -28,6 +30,7 @@
     (close-actor actor)))
 
 (deftest test-lambda-key ()
+  "Make sure lambda lists work."
   (define-actor point-actor ((x 0) (y 0) (z 0))
       (&key (dx 0) (dy 0) (dz 0))
     (list
@@ -43,6 +46,7 @@
     (close-actor actor)))
 
 (deftest test-multiple-values ()
+  "Return multiple values on join."
   (define-actor multivaluer ((prev 0)) (next)
     (multiple-value-prog1 (values prev next)
       (setf prev next)))
@@ -55,6 +59,7 @@
     (is (equal '(2 1) (multiple-value-list (join-actor actor))))))
 
 (deftest test-pong ()
+  "More complicated test, could be cleaner using the registry."
   (let (pinger ponger (result 0))
     (define-actor pinger () (c)
       (incf result)
@@ -77,6 +82,7 @@
     (is (= 11 result))))
 
 (deftest test-self ()
+  "Make sure the actor can see itself."
   (let ((result 0))
     (define-actor selfish-counter () ()
       (incf result)
@@ -90,6 +96,7 @@
       (is (= result 11)))))
 
 (deftest test-error-handling ()
+  "Custom error handling."
   (define-actor failer () (x)
     (/ 1 x))
 
@@ -101,39 +108,47 @@
     (close-actor actor)))
 
 (deftest test-closed-actor ()
+  "Sending messages to a closed actor signals an error."
   (define-actor closer () (x)
     x)
 
   (let ((actor (closer)))
     (close-actor actor)
-    (handler-case (send actor 'x)
-      (error (c) (is (typep c 'simple-error))))))
+    (signals simple-error
+      (send actor 'x))))
 
 (deftest test-redefine-actor ()
+  "Actors can change behavior while they are running."
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
 
   (let ((actor (counter)))
     (ask actor 1)
+
     (define-actor counter ((c 0)) (increment)
       (incf c (1- increment)))
+
     (send actor 3)
     (is (= 3 (ask actor 1)))
+
     (define-actor counter ((c 32)) (increment times)
       (incf c (* times increment)))
+
     (is (= 10 (ask actor 1 7)))
     (close-actor actor)))
 
 (deftest test-registry ()
+  "Make sure the global registry works."
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
 
   (counter :name :my-counter)
   (send :my-counter 1)
   (is (= 3 (ask :my-counter 2)))
-  (close-actor :my-counter))
+  (join-actor (close-actor :my-counter)))
 
 (deftest test-close-and-join ()
+  "Make sure we can join globally registered actors after we close them."
   (define-actor counter ((c 0)) (increment)
     (incf c increment))
 
@@ -141,4 +156,13 @@
   (send :my-counter 1)
   (is (= 3 (ask :my-counter 2)))
   (close-and-join-actors :my-counter)
-  (is (eql nil (gethash :my-counter *registry*))))
+  (is (null (gethash :my-counter *registry*))))
+
+(deftest test-destroy ()
+  "Make sure destroy works on globally registered actors."
+  (define-actor echoer () (x) x)
+
+  (echoer :name :echoer)
+  (is (= 1 (ask :echoer 1)))
+  (destroy-actor :echoer)
+  (is (null (gethash :echoer *registry*))))

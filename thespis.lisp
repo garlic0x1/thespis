@@ -97,9 +97,10 @@
 (defgeneric destroy-actor (actor)
   (:documentation "Immediately destroy an actor's thread.")
   (:method ((actor actor))
-    (bt2:interrupt-thread (actor-thread actor)
-                          (lambda ()
-                            (signal (make-instance 'unregister)))))
+    (bt2:interrupt-thread
+     (actor-thread actor)
+     (lambda () (signal (make-instance 'unregister))))
+    (bt2:join-thread (actor-thread actor)))
   (:method ((actor dispatcher))
     (prog1 (mapcar #'destroy-actor (dispatcher-workers actor))
       (remhash (dispatcher-name actor) *registry*)))

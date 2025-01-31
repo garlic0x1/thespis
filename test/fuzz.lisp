@@ -8,7 +8,7 @@
          :thespis/test/basic
          :stream (make-broadcast-stream)))))
 
-(deftest fuzz-dispatcher-tests (&optional (times 8))
+(deftest fuzz-dispatcher-tests (&optional (times 4))
   "Don't try as many reps here because it is too slow."
   (dotimes (i times)
     (is (fiasco:run-tests
