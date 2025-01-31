@@ -139,12 +139,6 @@
 
   (counter :name :my-counter)
   (send :my-counter 1)
-  (print "asking")
-  (force-output)
   (is (= 3 (ask :my-counter 2)))
-  (print "joining")
-  (force-output)
   (close-and-join-actors :my-counter)
-  (print "checking")
-  (force-output)
   (is (eql nil (gethash :my-counter *registry*))))

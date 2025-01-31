@@ -37,4 +37,19 @@
   (counter :name :my-counter :workers 2)
   (send :my-counter 1)
   (is (ask :my-counter 1))
-  (close-actor :my-counter))
+  (join-actor (close-actor :my-counter)))
+
+(deftest test-dispatcher-redefine ()
+  (define-actor counter ((c 0)) (increment)
+    (incf c increment))
+
+  (counter :name :my-counter :workers 2)
+  (ask :my-counter 1)
+  (ask :my-counter 1)
+
+  (define-actor counter ((c 0)) (increment)
+    (incf c (* 2 increment)))
+
+  (send :my-counter 1)
+  (send :my-counter 1)
+  (is (= 6 (reduce #'+ (join-actor (close-actor :my-counter))))))

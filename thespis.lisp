@@ -79,6 +79,7 @@
     (dolist (worker (dispatcher-workers actor))
       (close-actor worker))
     (setf (dispatcher-openp actor) nil)
+    (remhash (dispatcher-name actor) *registry*)
     actor)
   (:method ((actor t))
     (close-actor (resolve-actor actor))))
@@ -89,8 +90,7 @@
     (bt2:join-thread (actor-thread actor))
     (apply #'values (actor-store actor)))
   (:method ((actor dispatcher))
-    (prog1 (mapcar #'join-actor (dispatcher-workers actor))
-      (remhash (dispatcher-name actor) *registry*)))
+    (mapcar #'join-actor (dispatcher-workers actor)))
   (:method ((actor t))
     (join-actor (resolve-actor actor))))
 
